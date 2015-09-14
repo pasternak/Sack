@@ -7,7 +7,7 @@ import urllib.request
 import tarfile
 from urllib.parse import urljoin
 from prep import SearchForPackage
-from pretty import ProgressBar
+from pretty import ProgressBar, Color
 from pkg_resources import parse_version
 
 PYPI_ENDPOINT = "https://pypi.python.org/simple/"
@@ -15,17 +15,17 @@ PYPI_ENDPOINT = "https://pypi.python.org/simple/"
 
 class DownloadPackage(object):
 
-    def __init__(self, pkg):
+    def __init__(self, pkg, quiet=False, dependencies=False):
         """
             Download Package class with version check logic
             -
             @pkg - package name to download
             @quiet - do not print out any output
-            @dependencies - if set to True download all dependencies
+            @dependencies - indicator if current downloaded package is a dep
         """
         self.pkg = pkg
-        self.quiet = False
-        self.dependencies = True
+        self.quiet = quiet
+        self.dependencies = dependencies
 
     def version_check(self, requested, pkg):
         """Returns version of package which pass
@@ -49,10 +49,12 @@ class DownloadPackage(object):
         return check_version.get(check, None)
 
     def __unpack(self, members):
+        pkg = re.findall("\w+", self.pkg)[0]
         for info in members:
             # print("/".join(info.name.split("/")[1:]))
+            # print(self.pkg)
             if "/".join(info.name.split("/")[1:]) in [
-                "{}.egg-info/requires.txt".format(self.pkg),
+                "{}.egg-info/requires.txt".format(pkg),
                 "requirements.txt"
             ]:
                 return info
@@ -72,7 +74,7 @@ class DownloadPackage(object):
         for dep in a_file:
             dep = dep.decode('ascii')
             if re.match("^\w", dep):
-                download = DownloadPackage(dep)
+                download = DownloadPackage(dep, quiet=True, dependencies=True)
                 download()
 
         tar.close()
@@ -86,14 +88,27 @@ class DownloadPackage(object):
             if self.version_check(self.pkg, package):
                 link = urljoin(PYPI_ENDPOINT, link, False)
                 link = link.replace("../", "")
-                print("Requested: {} | Downloading: {}".format(
-                    self.pkg.split()[0], package))
-                urllib.request.urlretrieve(link,
-                                           "repo/{}.{}".format(package,
-                                                               extension),
-                                           reporthook=ProgressBar.hook)
+                if self.dependencies:
+                    info = "  Downloading dependency: {}".format(
+                        self.pkg.split()[0], **Color)
+                    ProgressBar.set_tab = 0
+
+                else:
+                    info = "Requested: {} | Downloading: {}".format(
+                        self.pkg.split()[0], package, **Color)
+                    ProgressBar.set_tab = 0
+
+                # print(info)
+                ProgressBar.text = info
+                d_file = "repo/{}.{}".format(package, extension)
+                if os.path.exists(d_file) is False:
+                    urllib.request.urlretrieve(link, d_file,
+                                               reporthook=ProgressBar.hook)
+                    print()
+                else:
+                    print("{Red}File {} exists...ignoring".format(d_file,
+                                                                  **Color))
                 urllib.request.urlcleanup()
-                print()
                 self.dependencies_check("{}.{}".format(package, extension))
                 return True
 

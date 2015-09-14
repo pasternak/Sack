@@ -17,15 +17,41 @@ Color = {
     'Black': '\033[0;30m',
     'Red': '\033[1;31m',
     'White': '\033[1;37m',
+    'Purple': '\033[0;35m',
+    'Cyan': '\033[0;36m',
     'On_Red': '\033[41m',
     'On_Yellow': '\033[43m',
     'On_Blue': '\033[44m',
+    'On_White': '\033[47m',
     'Color_Off': '\033[0m'
 }
 
 
 class ProgressBar(object):
+    def __init__(self):
+        pass
 
+# ### setters
+    @property
+    def set_tab(self):
+        return self._set_tab
+
+    @classmethod
+    @set_tab.setter
+    def set_tab(self, value):
+        self._set_tab = value
+
+    @property
+    def text(self):
+        return self._text
+
+    @classmethod
+    @text.setter
+    def text(self, value):
+        self._text = value
+
+
+# ### staticmethods
     @staticmethod
     def step(text, progress, line_width):
         pos = int(progress)
@@ -41,6 +67,6 @@ class ProgressBar(object):
         downloaded = int(count * chunk)
         if downloaded > total:
             downloaded = total
-        ProgressBar.step(" Progress: {}/{}".format(
-            downloaded, total),
+        ProgressBar.step("{} {}/{}".format(
+            ProgressBar.text, downloaded, total),
             int(count / (total / chunk / columns)), columns)
