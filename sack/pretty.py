@@ -63,10 +63,17 @@ class ProgressBar(object):
         sys.stdout.write(text)
 
     @staticmethod
+    def step2(text, downloaded, total):
+        bar = ('=' * int((downloaded/total) * 50)).ljust(50)
+        sys.stdout.write("{}\n\t[{}] {}/{}".format(text, bar, downloaded, total))
+        print('\033[F'*2)
+
+    @staticmethod
     def hook(count, chunk, total):
         downloaded = int(count * chunk)
         if downloaded > total:
             downloaded = total
-        ProgressBar.step("{} {}/{}".format(
-            ProgressBar.text, downloaded, total),
-            int(count / (total / chunk / columns)), columns)
+        ProgressBar.step2(ProgressBar.text, downloaded, total)
+        # ProgressBar.step("{} {}/{}".format(
+        #    ProgressBar.text, downloaded, total),
+        #    int(count / (total / chunk / columns)), columns)

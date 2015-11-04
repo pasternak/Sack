@@ -5,13 +5,11 @@ import sys
 import os
 import urllib.request
 import tarfile
-import time
 from zipfile import ZipFile
 from urllib.parse import urljoin
 from prep import SearchForPackage
 from pretty import ProgressBar, Color
 from pkg_resources import parse_version
-from multiprocessing import Process as Task, Queue, Manager, Array
 from collections import OrderedDict
 
 PYPI_ENDPOINT = "https://pypi.python.org/simple/"
@@ -36,7 +34,7 @@ class DownloadPackage(object):
     def version_check(self, requested, pkg):
         """Returns version of package which pass
             logical requirements: >,<,<=,>=,==="""
-        match = re.match('(\w+)(\W+)([\w\.\-]+)', requested)
+        match = re.match(r'(\w+)(\W+)([\w\.\-]+)', requested)
         package, check, version = None, None, None
 
         if match:
@@ -55,7 +53,7 @@ class DownloadPackage(object):
         return check_version.get(check, None)
 
     def __unpack(self, members):
-        pkg = re.findall("\w+", self.pkg)[0]
+        pkg = re.findall(r"\w+", self.pkg)[0]
         for info in members:
             # unpack for both zip and tarfile
             # ZipFile.namelist() returns list of file
@@ -90,20 +88,25 @@ class DownloadPackage(object):
         if unpack is None:
             return
 
+        # Dependencies list
+        deps = []
         if not archive.endswith(".zip"):
             a_file = arch.extractfile(member=unpack)
         else:
             zip_file = ZipFile("repo/{}".format(archive))
             # Remove [python>= version] version checks
             a_file = zip_file.read(unpack)
-            a_file = re.sub('\[.*\]', '', a_file.decode('ascii')).split()
+            a_file = re.sub(r'\[.*\]', '', a_file.decode('ascii')).split()
         for dep in a_file:
             if hasattr(dep, 'decode'):
                 dep = dep.decode('ascii')
-            if re.match("^\w", dep):
+            if re.match(r"^\w", dep):
+                deps.append(dep)
                 download = DownloadPackage(dep, quiet=True, dependencies=True)
-                download()
-
+                dep = download()
+                if dep is not None:
+                    deps.extend(dep)
+        return deps
         # arch.close()
 
     def hook(self, count, chunk, total):
@@ -116,10 +119,12 @@ class DownloadPackage(object):
         package = SearchForPackage(PYPI_ENDPOINT)
 
         for package, extension, link in \
-                package(re.findall("\w+", self.pkg)[0]):
+                package(re.findall(r"\w+", self.pkg)[0]):
 
             if self.version_check(self.pkg, package):
                 self.package = package
+
+                # Normalize PYPI_ENDPOINT URL
                 link = urljoin(PYPI_ENDPOINT, link, False)
                 link = link.replace("../", "")
                 if self.dependencies:
@@ -140,18 +145,19 @@ class DownloadPackage(object):
                                                reporthook=self.hook)
 
                 urllib.request.urlcleanup()
-                self.dependencies_check("{}.{}".format(package, extension))
-                return True
+                return self.dependencies_check("{}.{}".format(
+                    package, extension))
+                # return True
 
     def __call__(self):
-        self.__download()
+        return self.__download()
 
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Provide arg!")
         sys.exit(1)
-    status = Queue()
     progress = OrderedDict()
-    download = DownloadPackage(sys.argv[1])
-    download()
+    p_download = DownloadPackage(sys.argv[1])
+    p_dep = p_download()
+    print(p_dep)
